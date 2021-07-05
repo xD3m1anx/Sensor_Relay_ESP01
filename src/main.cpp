@@ -1,42 +1,4 @@
-//#define BLYNK_PRINT Debug
-#define OTA_PRINT   Debug
-
-#include <ESP8266WiFi.h>
-#include <ArduinoOTA.h>
-#include <BlynkSimpleEsp8266.h>
-#include <DHTesp.h>
-#include "mydebug.h"
-#include "esp8266gpio.h"
-
-/* --------------------------------------------------------------------------------------------------------------- */
-
-#define WIFI_CONNECT_HOME
-#define OTA_PGM
-#define BUILTIN_LED_ON
-#define TELNET_DEBUG
-
-#define OTA_HOSTNAME        "RelaySens"
-#define HOST_NAME           "relaysens"
-#define BLYNK_SERVER_IP     "192.168.0.50"
-#define BLYNK_AUTH_TOKEN    "M8BWp5UlO7yrru4TiaQ5wH2wPL7pxjOp"      //192.168.0.63
-
-#define DEBUG_MSG_INTERVAL  (15000)                                 //in ms 
-#define RELAY_CONTROL_PIN   GPIO0
-#define BPIN_UPTIME         V3
-
-/* --------------------------------------------------------------------------------------------------------------- */
-
-void ledBuiltinBlink(uint16 d);
-void localUptime(void);
-
-/* --------------------------------------------------------------------------------------------------------------- */
-
-#ifdef BUILTIN_LED_ON
-  #define BLINK_BUILTIN(__delay__)    ledBuiltinBlink(__delay__)
-#else
-  #define BLINK_BUILTIN(any)     ;
-  #pragma "Builtin led is off. To led on define 'BUILTIN_LED_ON'"  
-#endif
+#include "main.h"
 
 /* --------------------------------------------------------------------------------------------------------------- */
 
@@ -131,25 +93,38 @@ void setup() {
 
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, password, BLYNK_SERVER_IP, 8080);
   timer_Uptime.setInterval(1000UL, localUptime);
+  /* Check connection. Restart ESP if need */
+  while(!Blynk.connected()) {
+    for(int i = 0; i < 5; i ++) {
+      BLINK_BUILTIN(500);
+    }
+    delay(1000);
+    ESP.restart();
+  }
 }
 
 /* --------------------------------------------------------------------------------------------------------------- */
 uint32_t mLastTime;
 
 void loop() {
-  if(millis() - mLastTime >= DEBUG_MSG_INTERVAL) {
-    Debug.print("Local uptime: ");
-    Debug.println(millis() / 1000);
-    Debug.print("Ralay state is ");
-    String msg = (!digitalRead(RELAY_CONTROL_PIN)) ? "HI": "LOW";
-    Debug.println(msg);
-    mLastTime = millis();
-  }
+  #ifdef OTA_PGM
+    if(millis() - mLastTime >= DEBUG_MSG_INTERVAL) {
+      Debug.print("Local uptime: ");
+      Debug.println(millis() / 1000);
+      Debug.print("Ralay state is ");
+      String msg = (!digitalRead(RELAY_CONTROL_PIN)) ? "HI": "LOW";
+      Debug.println(msg);
+      mLastTime = millis();
+    }
+    ArduinoOTA.handle();
+  #endif
 
-  ArduinoOTA.handle();
+  #ifdef TELNET_DEBUG
+    Debug.handle();
+  #endif
+  
   Blynk.run();
   timer_Uptime.run();
-  Debug.handle();
 }
 
 /* --------------------------------------------------------------------------------------------------------------- */
